@@ -3,7 +3,8 @@ from rest_framework.response import Response
 from masknet.core import serializers
 from rest_framework.parsers import FormParser, MultiPartParser
 from django.core.files.storage import FileSystemStorage
-from masknet.core.mask_net import get_pred_mask
+# from masknet.core.mask_net import get_pred_mask
+from masknet.core.person_detect import get_person
 
 # Create your views here.
 
@@ -28,6 +29,6 @@ class PredictAPI(GenericAPIView):
             myfile = s.validated_data['input_img']
             filename = fs.save(myfile.name, myfile)
             uploaded_file_url = fs.path(filename)
-            result['mask'] = get_pred_mask(uploaded_file_url)
+            result['result'] = get_person(uploaded_file_url)
             
         return Response(result)

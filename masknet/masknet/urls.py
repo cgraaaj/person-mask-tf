@@ -23,7 +23,7 @@ schema_view = get_schema_view(
     openapi.Info(
         title="MaskNet API",
         default_version='v1',
-        description="Masknet Dataset",
+        description="Masknet ",
         contact=openapi.Contact(email="varadhodiyil@gmail.com"),
         license=openapi.License(name="BSD License"),
     ),

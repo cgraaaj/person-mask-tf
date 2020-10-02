@@ -1,6 +1,13 @@
 import tensorflow as tf
 import numpy as np
 
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+  try:
+    for gpu in gpus:
+      tf.config.experimental.set_memory_growth(gpu, True)
+  except RuntimeError as e:
+    print(e)
 
 def get_mask_model():
     base_model = tf.keras.applications.MobileNetV2(weights="imagenet", include_top=False,
@@ -26,15 +33,15 @@ mask_net = get_mask_model()
 
 
 
-def get_pred_mask(file_path):
-    t = tf.keras.preprocessing.image.load_img(file_path, target_size=(224, 224))
-    t = tf.keras.preprocessing.image.img_to_array(t)
-    t = tf.keras.applications.mobilenet_v2.preprocess_input(t)
+def get_pred_mask(image):
+    # t = tf.keras.preprocessing.image.load_img(file_path, target_size=(224, 224))
+    # t = tf.keras.preprocessing.image.img_to_array(t)
+    t = tf.keras.applications.mobilenet_v2.preprocess_input(image)
     y= mask_net.predict(np.array([t]))
-    label = ["without","with"]
+    label = ["No Mask","Has Mask"]
     resp = list()
     for _y in y:
-        resp.append( {'labe;': label[_y.argmax(axis=-1)] , 'confidence': max(_y) })
+        resp.append( {'label': label[_y.argmax(axis=-1)] , 'confidence': max(_y) })
     return resp
 
 
