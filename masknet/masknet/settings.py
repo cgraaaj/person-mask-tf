@@ -145,3 +145,55 @@ if not os.path.exists(MEDIA_ROOT):
 MODEL_ROOT = os.path.join(BASE_DIR, 'mask_weights')
 
 USE_MTCNN = True
+
+
+
+
+
+""" 
+check if weights exist
+"""
+
+def download_file_from_google_drive(id, destination):
+    URL = "https://docs.google.com/uc?export=download"
+
+    session = requests.Session()
+
+    response = session.get(URL, params = { 'id' : id }, stream = True)
+    token = get_confirm_token(response)
+
+    if token:
+        params = { 'id' : id, 'confirm' : token }
+        response = session.get(URL, params = params, stream = True)
+
+    save_response_content(response, destination)    
+
+def get_confirm_token(response):
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
+
+    return None
+
+def save_response_content(response, destination):
+    CHUNK_SIZE = 32768
+
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(CHUNK_SIZE):
+            if chunk: # filter out keep-alive new chunks
+                f.write(chunk)
+
+
+yolo_weights = os.path.join(MODEL_ROOT , "yolo_weights.h5")
+if not os.path.exists(yolo_weights):
+    print("Weights not found downloading....")
+    import requests
+    # exec("wget  -O {0}".format(yolo_weights))
+    download_file_from_google_drive("1U96am9KrdkmTfBXKiDSk4hbJhgcUESa0",yolo_weights)
+
+mask_weights = os.path.join(MODEL_ROOT, "mask_weights.h5")
+
+if not os.path.exists(mask_weights):
+    print("Weights not found downloading....")
+    import requests
+    download_file_from_google_drive("1-QeFOqdd-HpbD5tQRa64dnnqOHgOLpsD",mask_weights)
