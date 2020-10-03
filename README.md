@@ -4,5 +4,14 @@ This model analyses the given model if it contains person. If a person is detect
 Project Setup
 `requirements.txt` contains all the dependencies required for the project.
 
-`train/` dir contains the ```MobileNet``` model backed transfer learning, with 
+`train/` dir contains the ```MobileNet``` model backed transfer learning, with  [MaskNet dataset ](https://arxiv.org/abs/2008.08016)
 
+
+## Architecture used 
+  1. Person Detect - [YOLO](https://arxiv.org/abs/1506.02640)
+  2. Face Detection (Optional Can be configured in settings.py) To boost Person detection Confidence - [MTNN](https://arxiv.org/abs/1604.02878)
+  3. Mask Detection - Transfer learning from [MobileNetV2](https://arxiv.org/abs/1801.04381)
+
+
+## API flow
+![Flow](flow.png "Flow") 
