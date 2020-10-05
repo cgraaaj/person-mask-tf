@@ -146,6 +146,8 @@ MODEL_ROOT = os.path.join(BASE_DIR, 'mask_weights')
 
 USE_MTCNN = True
 
+SAVE_IMG = False
+
 
 
 

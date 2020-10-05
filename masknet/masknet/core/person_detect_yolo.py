@@ -333,7 +333,7 @@ def crop_person(image, box,i):
     outimage = cv2.resize(outimage, dsize=(224,224), interpolation=cv2.INTER_AREA)
     return outimage
 
-def get_persons(file_name):
+def get_persons(image):
     net_h, net_w = 416, 416
     obj_thresh, nms_thresh = 0.65, 0.45
     anchors = [[116,90,  156,198,  373,326],  [30,61, 62,45,  59,119], [10,13,  16,30,  33,23]]
@@ -348,10 +348,11 @@ def get_persons(file_name):
               "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", \
               "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"]
 
-    image = cv2.imread(file_name)
+    # image = cv2.imread(file_name)
     image_h, image_w, _ = image.shape
     # new_image = preprocess_input(image, net_h, net_w)
     new_image , _, _ = load_image_pixels(image, (net_h,net_w))
+    
 
     # run the prediction
     yolos = yolo_model.predict(new_image)
