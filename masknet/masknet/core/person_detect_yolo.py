@@ -1,11 +1,12 @@
+from masknet.core.mask_net import get_pred_mask
 import tensorflow as tf
 import numpy as np
 import cv2
 import os
 from django.conf import settings
 
-model_dir = getattr(settings,"MODEL_ROOT", None)
-use_mtcnn = getattr(settings, "USE_MTCNN",False)
+model_dir = getattr(settings, "MODEL_ROOT", None)
+use_mtcnn = getattr(settings, "USE_MTCNN", False)
 if use_mtcnn:
     from mtcnn import MTCNN
     mtcnn = MTCNN()
@@ -19,25 +20,31 @@ if not model_dir:
 """
 
 
-
 def _conv_block(inp, convs, skip=True):
     x = inp
     count = 0
-    
+
     for conv in convs:
         if count == (len(convs) - 2) and skip:
             skip_connection = x
         count += 1
-        
-        if conv['stride'] > 1: x = tf.keras.layers.ZeroPadding2D(((1,0),(1,0)))(x) # peculiar padding as darknet prefer left and top
-        x = tf.keras.layers.Conv2D(conv['filter'], 
-                   conv['kernel'], 
-                   strides=conv['stride'], 
-                   padding='valid' if conv['stride'] > 1 else 'same', # peculiar padding as darknet prefer left and top
-                   name='conv_' + str(conv['layer_idx']), 
-                   use_bias=False if conv['bnorm'] else True)(x)
-        if conv['bnorm']: x = tf.keras.layers.BatchNormalization(epsilon=0.001, name='bnorm_' + str(conv['layer_idx']))(x)
-        if conv['leaky']: x = tf.keras.layers.LeakyReLU(alpha=0.1, name='leaky_' + str(conv['layer_idx']))(x)
+
+        if conv['stride'] > 1:
+            # peculiar padding as darknet prefer left and top
+            x = tf.keras.layers.ZeroPadding2D(((1, 0), (1, 0)))(x)
+        x = tf.keras.layers.Conv2D(conv['filter'],
+                                   conv['kernel'],
+                                   strides=conv['stride'],
+                                   # peculiar padding as darknet prefer left and top
+                                   padding='valid' if conv['stride'] > 1 else 'same',
+                                   name='conv_' + str(conv['layer_idx']),
+                                   use_bias=False if conv['bnorm'] else True)(x)
+        if conv['bnorm']:
+            x = tf.keras.layers.BatchNormalization(
+                epsilon=0.001, name='bnorm_' + str(conv['layer_idx']))(x)
+        if conv['leaky']:
+            x = tf.keras.layers.LeakyReLU(
+                alpha=0.1, name='leaky_' + str(conv['layer_idx']))(x)
 
     return tf.keras.layers.add([skip_connection, x]) if skip else x
 
@@ -47,13 +54,16 @@ def make_yolov3_model():
 
     # Layer  0 => 4
     x = _conv_block(input_image, [{'filter': 32, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 0},
-                                  {'filter': 64, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 1},
-                                  {'filter': 32, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 2},
+                                  {'filter': 64, 'kernel': 3, 'stride': 2,
+                                      'bnorm': True, 'leaky': True, 'layer_idx': 1},
+                                  {'filter': 32, 'kernel': 1, 'stride': 1,
+                                      'bnorm': True, 'leaky': True, 'layer_idx': 2},
                                   {'filter': 64, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 3}])
 
     # Layer  5 => 8
     x = _conv_block(x, [{'filter': 128, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 5},
-                        {'filter':  64, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 6},
+                        {'filter':  64, 'kernel': 1, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 6},
                         {'filter': 128, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 7}])
 
     # Layer  9 => 11
@@ -62,43 +72,49 @@ def make_yolov3_model():
 
     # Layer 12 => 15
     x = _conv_block(x, [{'filter': 256, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 12},
-                        {'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 13},
+                        {'filter': 128, 'kernel': 1, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 13},
                         {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 14}])
 
     # Layer 16 => 36
     for i in range(7):
         x = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 16+i*3},
                             {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 17+i*3}])
-        
+
     skip_36 = x
-        
+
     # Layer 37 => 40
     x = _conv_block(x, [{'filter': 512, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 37},
-                        {'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 38},
+                        {'filter': 256, 'kernel': 1, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 38},
                         {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 39}])
 
     # Layer 41 => 61
     for i in range(7):
         x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 41+i*3},
                             {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 42+i*3}])
-        
+
     skip_61 = x
-        
+
     # Layer 62 => 65
     x = _conv_block(x, [{'filter': 1024, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 62},
-                        {'filter':  512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 63},
+                        {'filter':  512, 'kernel': 1, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 63},
                         {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 64}])
 
     # Layer 66 => 74
     for i in range(3):
         x = _conv_block(x, [{'filter':  512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 66+i*3},
                             {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 67+i*3}])
-        
+
     # Layer 75 => 79
     x = _conv_block(x, [{'filter':  512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 75},
-                        {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 76},
-                        {'filter':  512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 77},
-                        {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 78},
+                        {'filter': 1024, 'kernel': 3, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 76},
+                        {'filter':  512, 'kernel': 1, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 77},
+                        {'filter': 1024, 'kernel': 3, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 78},
                         {'filter':  512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 79}], skip=False)
 
     # Layer 80 => 82
@@ -106,15 +122,19 @@ def make_yolov3_model():
                               {'filter':  255, 'kernel': 1, 'stride': 1, 'bnorm': False, 'leaky': False, 'layer_idx': 81}], skip=False)
 
     # Layer 83 => 86
-    x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 84}], skip=False)
+    x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1,
+                         'bnorm': True, 'leaky': True, 'layer_idx': 84}], skip=False)
     x = tf.keras.layers.UpSampling2D(2)(x)
     x = tf.keras.layers.concatenate([x, skip_61])
 
     # Layer 87 => 91
     x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 87},
-                        {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 88},
-                        {'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 89},
-                        {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 90},
+                        {'filter': 512, 'kernel': 3, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 88},
+                        {'filter': 256, 'kernel': 1, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 89},
+                        {'filter': 512, 'kernel': 3, 'stride': 1,
+                            'bnorm': True, 'leaky': True, 'layer_idx': 90},
                         {'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 91}], skip=False)
 
     # Layer 92 => 94
@@ -122,37 +142,37 @@ def make_yolov3_model():
                               {'filter': 255, 'kernel': 1, 'stride': 1, 'bnorm': False, 'leaky': False, 'layer_idx': 93}], skip=False)
 
     # Layer 95 => 98
-    x = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True,   'layer_idx': 96}], skip=False)
+    x = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1,
+                         'bnorm': True, 'leaky': True,   'layer_idx': 96}], skip=False)
     x = tf.keras.layers.UpSampling2D(2)(x)
     x = tf.keras.layers.concatenate([x, skip_36])
 
     # Layer 99 => 106
     yolo_106 = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True,  'leaky': True,  'layer_idx': 99},
-                               {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True,  'leaky': True,  'layer_idx': 100},
-                               {'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True,  'leaky': True,  'layer_idx': 101},
-                               {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True,  'leaky': True,  'layer_idx': 102},
-                               {'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True,  'leaky': True,  'layer_idx': 103},
-                               {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True,  'leaky': True,  'layer_idx': 104},
+                               {'filter': 256, 'kernel': 3, 'stride': 1,
+                                   'bnorm': True,  'leaky': True,  'layer_idx': 100},
+                               {'filter': 128, 'kernel': 1, 'stride': 1,
+                                   'bnorm': True,  'leaky': True,  'layer_idx': 101},
+                               {'filter': 256, 'kernel': 3, 'stride': 1,
+                                   'bnorm': True,  'leaky': True,  'layer_idx': 102},
+                               {'filter': 128, 'kernel': 1, 'stride': 1,
+                                   'bnorm': True,  'leaky': True,  'layer_idx': 103},
+                               {'filter': 256, 'kernel': 3, 'stride': 1,
+                                   'bnorm': True,  'leaky': True,  'layer_idx': 104},
                                {'filter': 255, 'kernel': 1, 'stride': 1, 'bnorm': False, 'leaky': False, 'layer_idx': 105}], skip=False)
 
-    model = tf.keras.models.Model(input_image, [yolo_82, yolo_94, yolo_106])    
+    model = tf.keras.models.Model(input_image, [yolo_82, yolo_94, yolo_106])
     return model
 
 
-
-
 yolo_model = make_yolov3_model()
-yolo_model.load_weights( os.path.join(model_dir, "yolo_weights.h5"))
+yolo_model.load_weights(os.path.join(model_dir, "yolo_weights.h5"))
 
 
-
-print("*"*50 , "Yolo Load complete ", "*"*50)
-
-from masknet.core.mask_net import get_pred_mask
-
-print("*"*50 , "Mask Net Load complete ", "*"*50)
+print("*"*50, "Yolo Load complete ", "*"*50)
 
 
+print("*"*50, "Mask Net Load complete ", "*"*50)
 
 
 class BoundBox:
@@ -179,9 +199,9 @@ class BoundBox:
             self.score = self.classes[self.get_label()]
 
         return self.score
-    
+
     def get_boxes(self):
-        return [self.xmin , self.ymin , self.xmax , self.ymax]
+        return [self.xmin, self.ymin, self.xmax, self.ymax]
 
 
 def _interval_overlap(interval_a, interval_b):
@@ -305,19 +325,20 @@ def do_nms(boxes, nms_thresh):
 
 
 def load_image_pixels(image, shape):
-    
-    width, height , _ = image.shape
-    
-    image = cv2.resize(image, dsize=shape , interpolation=cv2.INTER_AREA)
-    
+
+    width, height, _ = image.shape
+
+    image = cv2.resize(image, dsize=shape, interpolation=cv2.INTER_AREA)
+
     image = image.astype('float32')
     image /= 255.0
-    
+
     image = np.expand_dims(image, 0)
     return image, width, height
 
-def crop_person(image, box,i):
-    
+
+def crop_person(image, box, i):
+
     # img = image[box.xmin:box.ymin, box.xmax:box.ymax]
     im_h, im_w, _ = image.shape
     ymin = box.ymin if box.ymin > 0 else 0
@@ -326,33 +347,35 @@ def crop_person(image, box,i):
     xmax = box.xmax if box.xmax > 0 else 0
 
     if box.ymin > 0:
-      thres = int(0.2 * (box.ymax - box.ymin))
-      ymin = (box.ymin - thres) if (box.ymin - thres) > 0 else ymin
-    outimage = image[ymin:ymax,xmin:xmax]
-    
-    outimage = cv2.resize(outimage, dsize=(224,224), interpolation=cv2.INTER_AREA)
+        thres = int(0.2 * (box.ymax - box.ymin))
+        ymin = (box.ymin - thres) if (box.ymin - thres) > 0 else ymin
+    outimage = image[ymin:ymax, xmin:xmax]
+
+    outimage = cv2.resize(outimage, dsize=(224, 224),
+                          interpolation=cv2.INTER_AREA)
     return outimage
+
 
 def get_persons(image):
     net_h, net_w = 416, 416
     obj_thresh, nms_thresh = 0.65, 0.45
-    anchors = [[116,90,  156,198,  373,326],  [30,61, 62,45,  59,119], [10,13,  16,30,  33,23]]
-    labels = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", \
-              "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", \
-              "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", \
-              "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", \
-              "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", \
-              "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", \
-              "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", \
-              "chair", "sofa", "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse", \
-              "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", \
+    anchors = [[116, 90,  156, 198,  373, 326],  [
+        30, 61, 62, 45,  59, 119], [10, 13,  16, 30,  33, 23]]
+    labels = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck",
+              "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+              "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+              "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+              "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+              "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana",
+              "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake",
+              "chair", "sofa", "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse",
+              "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
               "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"]
 
     # image = cv2.imread(file_name)
     image_h, image_w, _ = image.shape
     # new_image = preprocess_input(image, net_h, net_w)
-    new_image , _, _ = load_image_pixels(image, (net_h,net_w))
-    
+    new_image, _, _ = load_image_pixels(image, (net_h, net_w))
 
     # run the prediction
     yolos = yolo_model.predict(new_image)
@@ -360,14 +383,14 @@ def get_persons(image):
 
     for i in range(len(yolos)):
         # decode the output of the network
-        boxes += decode_netout(yolos[i][0], anchors[i], obj_thresh, nms_thresh, net_h, net_w)
+        boxes += decode_netout(yolos[i][0], anchors[i],
+                               obj_thresh, nms_thresh, net_h, net_w)
 
     # correct the sizes of the bounding boxes
     correct_yolo_boxes(boxes, image_h, image_w, net_h, net_w)
 
     # suppress non-maximal boxes
-    do_nms(boxes, nms_thresh)     
-
+    do_nms(boxes, nms_thresh)
 
     result = list()
     for box in boxes:
@@ -380,26 +403,25 @@ def get_persons(image):
                 label = i
                 if label_str == "person":
                     # print(labels[i] + ': ' + str(box.classes[i]*100) + '%')
-                    person_img = crop_person(image , box , i)
+                    person_img = crop_person(image, box, i)
                     conf = box.classes[i]
                     if use_mtcnn:
                         faces = mtcnn.detect_faces(person_img)
-                        if len(faces) ==0:
+                        if len(faces) == 0:
                             continue
                         else:
-                            faces.sort(key=lambda x : x['confidence'] ,reverse=True)
+                            faces.sort(
+                                key=lambda x: x['confidence'], reverse=True)
                             conf *= faces[0]['confidence']
                     if conf > obj_thresh:
                         person_features['label'] = labels[i]
                         person_features['confidence'] = conf
                         person_features['boxes'] = box.get_boxes()
-                        person_features['mask'] = get_pred_mask( person_img )
+                        person_features['mask'] = get_pred_mask(person_img)
                         result.append(person_features)
     return result
-
 
 
 if __name__ == "__main__":
 
     print(get_persons("../media/n_1.jpeg"))
-    
