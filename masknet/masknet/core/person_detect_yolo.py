@@ -401,5 +401,5 @@ def get_persons(image):
 
 if __name__ == "__main__":
 
-    print(get_persons("/home/madhan/person-mask-tf/masknet/media/n_1.jpeg"))
+    print(get_persons("../media/n_1.jpeg"))
     
