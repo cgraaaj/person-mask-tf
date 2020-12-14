@@ -1,10 +1,21 @@
 <div class="container">
-  <div class="vertical-center">
-    <div style="text-align: center;">
-      <app-file-upload
-        (complete)="onFileSelect($event)"
-        [target]="predictImg"
-      ></app-file-upload>
+    <div class="vertical-center">
+        <div style="text-align: center;">
+            <app-file-upload (complete)="onFileSelect($event)" [target]="predictImg"></app-file-upload>
+        </div>
+        <div *ngIf="hasResp" class="pt-5">
+            <span> Has Person : {{ data?.message}}</span>
+            <div *ngFor="let r of data?.result" class="pt-5">
+                <span>Label </span> <b> {{r.label}}</b> <br />
+                <span>Confidence </span> <b>{{r.confidence}}</b> <br />
+                <span>Box </span> {{r.boxes}} <br />
+                <div *ngFor="let m of r.mask" class="pt-5 pl-5">
+                    <span> Label : <b> {{m.label}} </b></span> <br />
+                    <span> Confidence : <b> {{m.confidence}} </b></span> <br />
+
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
+
 </div>
