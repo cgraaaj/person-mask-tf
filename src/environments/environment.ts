@@ -4,7 +4,7 @@
 
 export const environment = {
   production: false,
-  apiURL: "https://100.24.12.236/",
+  apiURL: "https://ec2-100-24-12-236.compute-1.amazonaws.com/",
 };
 
 /*
